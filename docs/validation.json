@@ -1,0 +1,55 @@
+{
+  "date": "2026-10-22",
+  "version": "1.1.0",
+  "runtime": {
+    "node": "24.21.0",
+    "jsdom": "30.1.3"
+  },
+  "syntaxCheck": "passed",
+  "tests": {
+    "total": 44,
+    "passed": 44,
+    "failed": 0,
+    "skipped": 0,
+    "todo": 0,
+    "report": "test-results.tap"
+  },
+  "regressions": {
+    "codeParametersAndWhitespace": "passed_logic_tests",
+    "taskParagraphs": "passed_logic_tests",
+    "providedReferenceLinks": "passed_logic_tests",
+    "nestedPreviewViewport": "removed",
+    "clipboardImageInsertion": "passed_mock_clipboard_tests",
+    "fixture": "公众号粘贴回归样例.md",
+    "wechatPasteRetest": "pending",
+    "paragraphSpacing": "passed_logic_tests",
+    "imageCaptionToggle": "passed_logic_tests",
+    "settingsMigration": "passed_logic_tests",
+    "outlineNavigation": "passed_logic_tests",
+    "hiddenPreviewScrollbar": "passed_jsdom_style_check",
+    "keyboardFocusAndReturnToTop": "passed_logic_tests"
+  },
+  "exampleExport": {
+    "completed": true,
+    "headings": 7,
+    "codeBlocks": 1,
+    "tables": 1,
+    "images": 1,
+    "file": "示例排版.html"
+  },
+  "browserLayout": "not_verified_browser_launch_failed",
+  "browserLaunchAttempt": "playwright_chromium_missing_system_chrome_sigabrt",
+  "browserScreenshotsGenerated": false,
+  "clipboardApiTest": "mocked",
+  "actualSystemClipboard": "not_verified",
+  "wechatEditor": "not_verified",
+  "wechatMobilePreview": "not_verified",
+  "traePractice": "not_performed",
+  "githubPages": "not_deployed",
+  "testGroups": {
+    "renderer": 26,
+    "interface": 18
+  },
+  "latestBrowserLaunchAttempt": "workspace_chromium_headless_shell_closed_before_page",
+  "usageGuide": "使用说明.md"
+}

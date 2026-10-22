@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="470" viewBox="0 0 1120 470">
+  <rect width="1120" height="470" fill="#f4f7f6"/>
+  <text x="66" y="70" fill="#253d34" font-family="Arial,PingFang SC,sans-serif" font-size="25" font-weight="600">Markdown → 微信公众号</text>
+  <text x="66" y="107" fill="#7b8b84" font-family="Arial,PingFang SC,sans-serif" font-size="17">同一份内容，从写作到发布</text>
+  <g font-family="Arial,PingFang SC,sans-serif">
+    <rect x="66" y="156" width="270" height="230" rx="8" fill="#fff" stroke="#d9e4dd"/>
+    <text x="91" y="195" fill="#18745b" font-size="13">01 / WRITE</text>
+    <text x="91" y="230" fill="#34483e" font-size="23">专注内容</text>
+    <text x="91" y="275" fill="#7b8b84" font-size="17"># 标题</text>
+    <text x="91" y="308" fill="#7b8b84" font-size="17">正文、图片、代码</text>
+    <text x="91" y="341" fill="#7b8b84" font-size="17">用熟悉的 Markdown 写作</text>
+    <path d="M359 264h34m-9-9 9 9-9 9" fill="none" stroke="#87a494" stroke-width="2"/>
+    <rect x="423" y="156" width="270" height="230" rx="8" fill="#fff" stroke="#d9e4dd"/>
+    <text x="448" y="195" fill="#18745b" font-size="13">02 / FORMAT</text>
+    <text x="448" y="230" fill="#34483e" font-size="23">统一排版</text>
+    <text x="448" y="275" fill="#7b8b84" font-size="17">标题层级与段落间距</text>
+    <text x="448" y="308" fill="#7b8b84" font-size="17">代码高亮与表格换行</text>
+    <text x="448" y="341" fill="#7b8b84" font-size="17">手机 / 电脑预览</text>
+    <path d="M716 264h34m-9-9 9 9-9 9" fill="none" stroke="#87a494" stroke-width="2"/>
+    <rect x="780" y="156" width="270" height="230" rx="8" fill="#eaf3ed" stroke="#c8dbcf"/>
+    <text x="805" y="195" fill="#18745b" font-size="13">03 / PUBLISH</text>
+    <text x="805" y="230" fill="#34483e" font-size="23">复制后发布</text>
+    <text x="805" y="275" fill="#6f8779" font-size="17">复制带样式的富文本</text>
+    <text x="805" y="308" fill="#6f8779" font-size="17">粘贴到公众号正文</text>
+    <text x="805" y="341" fill="#6f8779" font-size="17">发送预览，检查图片</text>
+  </g>
+</svg>

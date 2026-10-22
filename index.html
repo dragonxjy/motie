@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#1c8feb">
+  <meta name="description" content="粘贴 Markdown，预览版式并复制到微信公众号。">
+  <title>墨贴 · Markdown 公众号排版</title>
+  <link rel="stylesheet" href="./src/styles.css">
+  <link rel="icon" href="./assets/favicon.svg" type="image/svg+xml">
+</head>
+<body>
+  <header class="app-header">
+    <a class="brand" href="./index.html"><span class="brand-icon"><i data-lucide="notebook-pen"></i></span><strong>墨贴</strong><span>Markdown 公众号排版</span></a>
+    <div class="header-actions"><span id="draft-status" class="draft-status">仅本页处理</span><button class="icon-button" data-action="help" title="复制与图片说明" aria-label="复制与图片说明"><i data-lucide="circle-help"></i></button><button class="button primary" id="copy-button" data-action="copy"><i data-lucide="copy"></i><span id="copy-label">复制到公众号</span></button></div>
+  </header>
+
+  <main class="workspace">
+    <div class="mobile-tabs" role="tablist" aria-label="编辑视图"><button role="tab" id="source-tab" aria-controls="source-pane" aria-selected="true" data-view="source">编辑</button><button role="tab" id="preview-tab" aria-controls="preview-pane" aria-selected="false" data-view="preview">预览</button><button data-action="settings" aria-expanded="false" aria-controls="settings-panel"><i data-lucide="sliders-horizontal"></i>排版</button></div>
+    <section class="source-panel" aria-labelledby="source-title">
+      <div class="panel-toolbar"><div class="panel-title"><i data-lucide="file-code-2"></i><h1 id="source-title">Markdown</h1></div><div class="toolbar-actions"><button class="icon-button" data-action="undo" id="undo-button" title="撤销" aria-label="撤销" disabled><i data-lucide="undo-2"></i></button><button class="icon-button" data-action="redo" id="redo-button" title="重做" aria-label="重做" disabled><i data-lucide="redo-2"></i></button><span class="toolbar-divider"></span><button class="icon-button" data-action="import" title="导入 Markdown" aria-label="导入 Markdown"><i data-lucide="file-up"></i></button><button class="icon-button" data-action="image" title="选择图片；也可在光标处粘贴图片" aria-label="选择图片或粘贴图片"><i data-lucide="image-plus"></i></button><div class="menu-wrap"><button class="icon-button" data-action="source-menu" title="更多操作" aria-label="更多操作" aria-expanded="false" aria-controls="source-menu"><i data-lucide="ellipsis"></i></button><div id="source-menu" class="menu" hidden><button data-action="sample"><i data-lucide="file-text"></i>载入示例</button><button data-action="save-md"><i data-lucide="download"></i>下载 Markdown</button><button data-action="clear"><i data-lucide="trash-2"></i>清空内容</button></div></div></div></div>
+      <div class="source-body" id="source-pane"><textarea id="markdown-input" aria-label="Markdown 正文；可在光标处粘贴图片" spellcheck="false" autocomplete="off" autocapitalize="off" placeholder="粘贴 Markdown，或在光标处直接粘贴图片"></textarea><div class="drop-hint" id="drop-hint" hidden><i data-lucide="upload"></i>松开导入 Markdown 或插入图片</div></div>
+      <footer class="panel-footer"><span id="source-count">0 字符</span><label class="save-option"><input type="checkbox" id="save-draft">保存本机草稿</label><span id="source-name">示例文章</span></footer>
+    </section>
+
+    <section class="preview-panel" id="preview-pane" aria-labelledby="preview-title">
+      <div class="panel-toolbar"><div class="panel-title"><i data-lucide="scan-eye"></i><h2 id="preview-title">排版预览</h2></div><div class="toolbar-actions"><div class="segmented" role="group" aria-label="预览宽度"><button data-device="mobile" class="active" title="手机预览，375 像素" aria-label="手机预览" aria-pressed="true"><i data-lucide="smartphone"></i></button><button data-device="desktop" title="电脑预览，680 像素" aria-label="电脑预览" aria-pressed="false"><i data-lucide="monitor"></i></button></div><button class="icon-button" data-action="preview-top" title="回到文章顶部" aria-label="回到文章顶部"><i data-lucide="arrow-up-to-line"></i></button><button class="icon-button" data-action="download-html" id="html-button" title="导出排版 HTML" aria-label="导出排版 HTML"><i data-lucide="download"></i></button></div></div>
+      <div id="render-error" class="error-banner" role="alert" hidden></div>
+      <div class="preview-scroll" id="preview-scroll" tabindex="0" role="region" aria-label="文章排版预览，可滚动阅读"><div class="preview-width-label"><span id="preview-width">375 px</span><span id="preview-size">手机正文</span></div><div class="preview-paper" id="preview-paper"><div class="preview-content" id="preview-content"></div></div><div id="preview-empty" class="preview-empty" hidden><i data-lucide="file-pen-line"></i><p>正文预览</p></div></div>
+      <footer class="panel-footer"><span id="article-count">0 字</span><span id="read-time">约 1 分钟</span><button class="footer-button" id="issues-button" data-action="issues"><span id="issue-count">0 项检查</span><i data-lucide="chevron-right"></i></button></footer>
+    </section>
+
+    <aside class="settings-panel" id="settings-panel" aria-labelledby="settings-title">
+      <div class="panel-toolbar"><div class="panel-title"><i data-lucide="sliders-horizontal"></i><h2 id="settings-title">排版</h2></div><button class="icon-button" data-action="reset-style" title="恢复默认排版" aria-label="恢复默认排版"><i data-lucide="rotate-ccw"></i></button></div>
+      <div class="settings-content">
+        <div class="setting-group"><label for="theme-select">文章样式</label><select id="theme-select"><option value="clean">简洁</option><option value="editorial">书刊</option><option value="technical">技术</option></select></div>
+        <fieldset class="setting-group color-group"><legend>主题色</legend><div class="swatches"><button class="swatch selected" data-color="#1c8feb" style="--swatch:#1c8feb" aria-label="晴空蓝" title="晴空蓝" aria-pressed="true"></button><button class="swatch" data-color="#315aa6" style="--swatch:#315aa6" aria-label="靛蓝" title="靛蓝" aria-pressed="false"></button><button class="swatch" data-color="#a3453e" style="--swatch:#a3453e" aria-label="朱红" title="朱红" aria-pressed="false"></button><button class="swatch" data-color="#76508e" style="--swatch:#76508e" aria-label="紫灰" title="紫灰" aria-pressed="false"></button><button class="swatch" data-color="#32383e" style="--swatch:#32383e" aria-label="墨黑" title="墨黑" aria-pressed="false"></button><label class="custom-color" title="自定义颜色"><i data-lucide="pipette"></i><input type="color" id="accent-color" aria-label="自定义主题色" value="#1c8feb"></label></div></fieldset>
+        <div class="setting-row"><label for="font-size">字号</label><div class="numeric-control"><input id="font-size" type="number" min="13" max="20" step="1" value="16"><span>px</span></div></div>
+        <div class="setting-row"><label for="line-height">行距</label><select id="line-height"><option value="1.6">紧凑 · 1.6</option><option value="1.85" selected>标准 · 1.85</option><option value="2">宽松 · 2.0</option><option value="2.2">加宽 · 2.2</option></select></div>
+        <div class="setting-row"><label for="paragraph-spacing">段落间距</label><select id="paragraph-spacing"><option value="12">紧凑 · 12 px</option><option value="18" selected>标准 · 18 px</option><option value="24">宽松 · 24 px</option></select></div>
+        <div class="setting-divider"></div>
+        <label class="checkbox-row"><input id="code-wrap" type="checkbox" checked><span>代码自动换行</span></label>
+        <label class="checkbox-row"><input id="link-footnotes" type="checkbox" checked><span>外链转为文末注释</span></label>
+        <label class="checkbox-row"><input id="hide-heading" type="checkbox"><span>正文隐藏首个一级标题</span></label>
+        <label class="checkbox-row"><input id="image-captions" type="checkbox" checked><span>图片下显示说明文字</span></label>
+        <details class="outline-section"><summary>文章大纲 <span id="heading-count" class="count-badge">0</span></summary><nav id="outline-list" aria-label="文章标题大纲"><p class="outline-empty">文章中没有标题。</p></nav></details>
+        <div class="setting-divider"></div>
+        <button class="sidebar-action" data-action="images"><span><i data-lucide="images"></i>图片管理</span><span id="image-count" class="count-badge">0</span><i data-lucide="chevron-right"></i></button>
+        <button class="sidebar-action" data-action="issues"><span><i data-lucide="list-checks"></i>发布前检查</span><span id="warning-badge" class="count-badge">0</span><i data-lucide="chevron-right"></i></button>
+      </div>
+      <div class="sidebar-bottom"><span class="status-dot"></span><span>本地排版，不上传正文</span><button data-action="help" class="icon-button" title="复制与图片说明" aria-label="复制与图片说明"><i data-lucide="info"></i></button></div>
+    </aside>
+  </main>
+
+  <input type="file" id="markdown-file" accept=".md,.markdown,.txt,text/markdown,text/plain" hidden>
+  <input type="file" id="image-file" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden>
+  <input type="file" id="replace-file" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+  <dialog id="images-dialog" aria-labelledby="images-title"><div class="dialog-header"><h2 id="images-title">图片管理</h2><button class="icon-button" data-close="images-dialog" title="关闭" aria-label="关闭图片管理"><i data-lucide="x"></i></button></div><div class="dialog-body"><div class="dialog-command"><span id="images-description">当前文章的图片</span><button class="button" data-action="image"><i data-lucide="image-plus"></i>插入图片</button></div><div id="image-list"></div><p class="context-note">公众号会重新处理图片。外链若有防盗链，或本地图片未被接收，请在公众号上传原图；本工具不会自动上传到微信素材库。</p></div></dialog>
+  <dialog id="issues-dialog" aria-labelledby="issues-title"><div class="dialog-header"><h2 id="issues-title">发布前检查</h2><button class="icon-button" data-close="issues-dialog" title="关闭" aria-label="关闭发布前检查"><i data-lucide="x"></i></button></div><div class="dialog-body"><ul id="issues-list" class="issues-list"></ul><div class="check-summary" id="check-summary"></div><p class="context-note">复制结果采用内联样式。公众号可能调整样式、链接和图片，建议粘贴后发送手机预览，检查代码、表格、图片及全文。</p></div></dialog>
+  <dialog id="help-dialog" aria-labelledby="help-title"><div class="dialog-header"><h2 id="help-title">复制与图片说明</h2><button class="icon-button" data-close="help-dialog" title="关闭" aria-label="关闭说明"><i data-lucide="x"></i></button></div><div class="dialog-body help-body"><h3>复制的是排版后的富文本</h3><p>点击“复制到公众号”，再到公众号正文编辑区正常粘贴。不要使用“粘贴为纯文本”；文章标题需要填写到公众号单独的标题栏。</p><h3>代码与表格</h3><p>代码颜色和文字样式使用内联样式。默认开启代码换行，表格按正文宽度换行；列数很多时建议拆表或转图片。</p><h3>图片要在公众号中复核</h3><p>支持 HTTPS / HTTP 图片及本地 PNG、JPG、WebP、GIF。相对路径图片可在图片管理中替换。本地图片仅供当前页面预览；富文本携带 data 图片不代表公众号已接收，必要时在公众号上传原图。工具不保存账号，也不上传到素材库。</p><h3>离线、复制与保存</h3><p>双击可编辑和导出。富文本复制在 HTTPS 或 localhost 中支持更完整；不支持时会尝试选区复制。草稿保存默认关闭，开启后仅保存 Markdown 和排版设置，本地图片需重新选择。</p><h3>支持范围</h3><p>支持常见 Markdown、GFM 表格、任务列表和安全的基础 HTML。脚本、嵌入网页、音视频、SVG 会移除；数学公式和 Mermaid 不自动转图，请另行插入图片。</p></div></dialog>
+  <dialog id="confirm-dialog" aria-labelledby="confirm-title"><div class="dialog-header"><h2 id="confirm-title">替换当前正文？</h2><button class="icon-button" data-close="confirm-dialog" title="取消" aria-label="取消"><i data-lucide="x"></i></button></div><div class="dialog-body"><p id="confirm-message">当前内容可以通过撤销恢复。</p><div class="dialog-actions"><button class="button" data-close="confirm-dialog">取消</button><button class="button primary" id="confirm-button">确认</button></div></div></dialog>
+  <script src="./vendor/marked.umd.js"></script><script src="./vendor/purify.min.js"></script><script src="./vendor/highlight.min.js"></script><script src="./vendor/lucide.min.js"></script><script src="./src/renderer.js"></script><script src="./src/sample.js"></script><script src="./assets/sample-image.js"></script><script src="./src/app.js"></script>
+</body>
+</html>
