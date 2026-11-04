@@ -1,14 +1,15 @@
 {
-  "date": "2026-10-22",
+  "date": "2026-11-04",
   "version": "1.1.0",
   "runtime": {
     "node": "24.21.0",
-    "jsdom": "30.1.3"
+    "jsdom": "30.1.3",
+    "chrome": "156.0.8078.81"
   },
   "syntaxCheck": "passed",
   "tests": {
-    "total": 44,
-    "passed": 44,
+    "total": 51,
+    "passed": 51,
     "failed": 0,
     "skipped": 0,
     "todo": 0,
@@ -26,8 +27,20 @@
     "imageCaptionToggle": "passed_logic_tests",
     "settingsMigration": "passed_logic_tests",
     "outlineNavigation": "passed_logic_tests",
-    "hiddenPreviewScrollbar": "passed_jsdom_style_check",
-    "keyboardFocusAndReturnToTop": "passed_logic_tests"
+    "hiddenPreviewScrollbar": "passed_real_browser_checks",
+    "keyboardFocusAndReturnToTop": "passed_logic_tests",
+    "fixedDesktopArticleWidth": "passed_real_browser_checks",
+    "defaultCodeHorizontalScroll": "passed_real_browser_checks",
+    "codeTouchSwipe": "passed_real_browser_checks",
+    "clipboardCodeStyles": "passed_mock_clipboard_tests",
+    "nativeClipboardCodeStructure": "passed_real_chrome_native_copy_paste_to_local_contenteditable",
+    "wechatCompatibleCodeStructure": "pre.custom_webkit_box_single_child",
+    "codeAfterStyleCleaning": "passed_real_browser_regression_fixture_not_full_wechat_sanitizer",
+    "defaultCodeTheme": "one_dark_with_copied_window_dots_passed_logic_tests",
+    "codeThemeSwitching": "four_themes_copy_export_and_native_mobile_touch_passed_real_browser_checks",
+    "articleStyleSwitching": "nine_styles_and_36_article_code_theme_combinations_passed_logic_and_browser_checks",
+    "isolatedClipboardHtmlThemeAndTouch": "passed_real_browser_checks_without_motie_css_js",
+    "exportWidthConsistency": "passed_real_browser_checks"
   },
   "exampleExport": {
     "completed": true,
@@ -37,19 +50,20 @@
     "images": 1,
     "file": "示例排版.html"
   },
-  "browserLayout": "not_verified_browser_launch_failed",
-  "browserLaunchAttempt": "playwright_chromium_missing_system_chrome_sigabrt",
-  "browserScreenshotsGenerated": false,
+  "browserLayout": "passed_real_chrome_checks",
+  "browserLaunchAttempt": "system_chrome_headless_passed_with_sandbox_permission",
+  "browserScreenshotsGenerated": true,
   "clipboardApiTest": "mocked",
-  "actualSystemClipboard": "not_verified",
-  "wechatEditor": "not_verified",
+  "actualSystemClipboard": "verified_real_chrome_copy_and_native_paste_to_local_page",
+  "wechatEditor": "located_read_only_script_execution_blocked_user_chose_local_validation",
   "wechatMobilePreview": "not_verified",
   "traePractice": "not_performed",
   "githubPages": "not_deployed",
   "testGroups": {
-    "renderer": 26,
-    "interface": 18
+    "renderer": 30,
+    "interface": 21
   },
-  "latestBrowserLaunchAttempt": "workspace_chromium_headless_shell_closed_before_page",
-  "usageGuide": "使用说明.md"
+  "usageGuide": "使用说明.md",
+  "browserReport": "browser-checks.json",
+  "nativeClipboardReport": "clipboard-check.json"
 }

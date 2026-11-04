@@ -13,7 +13,7 @@ window.MOTIE_SAMPLE = [
   '',
   '## 代码块',
   '',
-  '长参数列表在手机上容易换行。对照原文时，检查参数顺序、缩进和空行。',
+  '长代码保留原始换行，可在代码块内左右滑动查看。对照原文时，检查参数顺序、缩进和空行。',
   '',
   '```javascript',
   'async function fetchUsers(page, { active = true, pageSize = 20 } = {}) {',

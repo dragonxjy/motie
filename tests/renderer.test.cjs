@@ -19,24 +19,142 @@ test('常见 Markdown 结构全部生成内联样式，不依赖类名或样式�
   for (const selector of ['h1', 'p', 'strong', 'em', 'code', 'blockquote', 'ul', 'li', 'hr']) assert.ok(doc.querySelector(selector)?.getAttribute('style'), selector);
   assert.equal(doc.querySelectorAll('[class],style,link,script').length, 0);
   assert.ok(doc.querySelector('section').style.width === '100%');
+  assert.equal(doc.querySelector('section').style.maxWidth, '677px');
 });
 
 test('代码高亮保留原始缩进、换行和内联颜色', () => {
   const code = 'const html = "<button>";\n  console.log(html);';
   const result = render('```javascript\n' + code + '\n```');
   const pre = parsed(result).querySelector('pre');
+  const scroller = pre.querySelector('code');
   assert.equal(codeText(pre), code);
-  assert.equal(pre.style.whiteSpace, 'pre-wrap');
+  assert.equal(pre.style.whiteSpace, 'nowrap');
+  assert.equal(pre.style.overflow, 'hidden');
+  assert.equal(scroller.style.overflowX, 'auto');
+  assert.equal(scroller.style.overflowWrap, 'normal');
+  assert.equal(scroller.style.wordBreak, 'normal');
+  assert.equal(scroller.style.whiteSpace, 'nowrap');
   assert.ok(pre.querySelector('span[style*="color"]'));
+  for (const node of pre.querySelectorAll('code,span')) {
+    assert.equal(node.style.whiteSpace, 'nowrap');
+    assert.equal(node.style.wordBreak, 'normal');
+    assert.equal(node.style.overflowWrap, 'normal');
+  }
   assert.equal(pre.querySelector('button'), null);
 });
 
-test('未知语言采用纯文本回退，关闭换行采用可滚动代码块', () => {
-  const result = render('```unknown-lang\na < b\n```', { codeWrap: false });
-  const pre = parsed(result).querySelector('pre');
-  assert.equal(codeText(pre), 'a < b');
-  assert.equal(pre.style.whiteSpace, 'pre');
-  assert.equal(pre.style.overflowX, 'auto');
+test('默认代码主题在所有文章样式中内联输出，颜色与防折行不依赖外部 CSS', () => {
+  const source = '// 中文注释与 JSX\nfunction Counter() {\n  const label = "计数";\n  console.log(label);\n  return <div>{label}</div>;\n}';
+  for (const theme of Object.keys(api.themes)) {
+    const result = render('```jsx\n' + source + '\n```', { theme, accent: '#a3453e', fontSize: 20 });
+    const doc = parsed(result);
+    const pre = doc.querySelector('pre'), code = pre.querySelector('code'), scroller = pre.querySelector('code');
+    const panel = pre.parentElement, toolbar = pre.previousElementSibling;
+    assert.equal(codeText(pre), source);
+    assert.equal(result.plainText, source, '三色圆点不污染纯文本代码');
+    assert.equal(scroller.children.length, 1, '工具栏位于滚动区域之外');
+    assert.equal(panel.style.backgroundColor, 'rgb(40, 44, 52)');
+    assert.equal(panel.style.borderRadius, '5px');
+    assert.ok(panel.style.boxShadow);
+    assert.equal(toolbar.getAttribute('aria-hidden'), 'true');
+    assert.deepEqual([...toolbar.children].map(dot => dot.style.backgroundColor), ['rgb(255, 95, 86)', 'rgb(255, 189, 46)', 'rgb(39, 201, 63)']);
+    for (const dot of toolbar.children) {
+      assert.equal(dot.style.borderRadius, '50%');
+      assert.equal(dot.style.width, '10px');
+      assert.equal(dot.style.height, '10px');
+    }
+    assert.equal(pre.style.backgroundColor, 'rgb(40, 44, 52)');
+    assert.equal(scroller.style.padding, '8px 16px 20px');
+    assert.equal(pre.style.fontSize, '13px');
+    assert.equal(pre.style.lineHeight, '25.5px');
+    assert.match(pre.style.fontFamily, /Menlo/);
+    assert.equal(scroller.style.display, '-webkit-box');
+    for (const node of [pre, code, ...code.querySelectorAll('span')]) {
+      assert.equal(node.style.getPropertyPriority('white-space'), 'important');
+      assert.equal(node.style.whiteSpace, 'nowrap');
+      assert.equal(node.style.wordBreak, 'normal');
+      assert.equal(node.style.overflowWrap, 'normal');
+    }
+    const color = text => [...code.querySelectorAll('span')].find(node => node.textContent.replace(/\u00a0/g, ' ') === text)?.style.color;
+    assert.equal(color('function'), 'rgb(198, 120, 221)');
+    assert.equal(color('Counter'), 'rgb(97, 175, 239)');
+    assert.equal(color('console'), 'rgb(230, 192, 123)');
+    assert.equal(color('log'), 'rgb(97, 175, 239)');
+    assert.equal(color('"计数"'), 'rgb(152, 195, 121)');
+    assert.equal(color('// 中文注释与 JSX'), 'rgb(92, 99, 112)');
+    assert.equal([...code.querySelectorAll('span')].find(node => node.textContent.replace(/\u00a0/g, ' ') === '// 中文注释与 JSX').style.fontStyle, 'italic');
+    assert.equal(doc.querySelector('[class]:not(pre.custom),style,link'), null);
+  }
+});
+
+test('四种代码主题的配色进入复制和导出，所有主题保留同一滚动结构与原文', () => {
+  const source = 'const url = "https://example.com/' + 'articles/'.repeat(30) + '";\n  // 保留缩进与空行\n\n  console.log(url);';
+  const markdown = '```javascript\n' + source + '\n```';
+  const fixtures = [
+    ['one-dark', 'rgb(40, 44, 52)', 'rgb(198, 120, 221)'],
+    ['light', 'rgb(246, 248, 250)', 'rgb(207, 34, 46)'],
+    ['purple', 'rgb(40, 42, 54)', 'rgb(255, 121, 198)'],
+    ['night-blue', 'rgb(15, 23, 42)', 'rgb(196, 181, 253)']
+  ];
+  for (const [codeTheme, background, keyword] of fixtures) {
+    for (const theme of Object.keys(api.themes)) {
+      const result = render(markdown, { codeTheme, theme });
+      const doc = parsed(result), pre = doc.querySelector('pre'), code = pre.querySelector('code');
+      assert.equal(result.plainText, source);
+      assert.equal(codeText(pre), source);
+      assert.equal(pre.className, 'custom');
+      assert.equal(code.children.length, 1);
+      assert.equal(code.style.display, '-webkit-box');
+      assert.equal(code.style.overflowX, 'auto');
+      assert.equal(code.style.whiteSpace, 'nowrap');
+      assert.equal(code.style.wordBreak, 'normal');
+      assert.equal(code.querySelectorAll('br').length, 3);
+      for (const node of [pre.parentElement, pre.previousElementSibling, pre, code]) assert.equal(node.style.backgroundColor, background);
+      assert.equal([...code.querySelectorAll('span')].find(node => node.textContent === 'const').style.color, keyword);
+      assert.equal(pre.previousElementSibling.children.length, 3);
+      const exported = new dom.window.DOMParser().parseFromString(api.exportDocument(result), 'text/html');
+      assert.equal(exported.querySelector('pre').outerHTML, pre.outerHTML);
+      assert.equal(exported.querySelector('link,style,script'), null);
+    }
+  }
+});
+
+test('未知语言与原始 pre 都采用兼容滚动结构，纯文本内容保持一致', () => {
+  for (const markdown of ['```unknown-lang\na < b\n```', '<pre>a &lt; b</pre>', '<pre><code>a &lt; b</code></pre>']) {
+    const result = render(markdown);
+    const pre = parsed(result).querySelector('pre');
+    const scroller = pre.querySelector('code');
+    assert.equal(codeText(pre), 'a < b');
+    assert.equal(result.plainText, 'a < b');
+    assert.equal(pre.className, 'custom');
+    assert.equal(pre.style.whiteSpace, 'nowrap');
+    assert.equal(scroller.style.display, '-webkit-box');
+    assert.equal(scroller.style.overflowX, 'auto');
+    assert.equal(scroller.children.length, 1);
+    assert.equal(scroller.firstElementChild.style.display, 'block');
+  }
+});
+
+test('代码换行需显式开启，高亮与未知语言都保留原始内容且可恢复横向滚动', () => {
+  const source = 'const message = "这是一行含中文、空格和长路径的代码 /api/v1/articles/details";\n  console.log(message);';
+  for (const language of ['javascript', 'unknown-lang']) {
+    const markdown = '```' + language + '\n' + source + '\n```';
+    const wrapped = parsed(render(markdown, { codeWrap: true })).querySelector('pre');
+    assert.equal(codeText(wrapped), source);
+    for (const node of [wrapped, ...wrapped.querySelectorAll('code,span')]) {
+      assert.equal(node.style.whiteSpace, 'pre-wrap');
+      assert.equal(node.style.overflowWrap, 'anywhere');
+    }
+    assert.equal(wrapped.querySelector('code').style.maxWidth, '100%');
+    const scrolling = parsed(render(markdown, { codeWrap: false })).querySelector('pre');
+    const scroller = scrolling.querySelector('code');
+    assert.equal(codeText(scrolling), source);
+    assert.equal(scroller.style.overflowX, 'auto');
+    assert.equal(scroller.style.overflowWrap, 'normal');
+    assert.equal(scroller.style.wordBreak, 'normal');
+    assert.equal(scrolling.querySelector('code').style.maxWidth, '100%');
+    assert.ok(render(markdown).plainText.includes(source));
+  }
 });
 
 test('表格固定为正文宽度，并支持对齐和单元格换行', () => {
@@ -120,10 +238,37 @@ test('主题、主题色、字号和行距生效，同时校验设置输入', ()
   assert.ok(doc.querySelector('h2').style.borderLeft.includes('3px'));
   assert.equal(doc.querySelector('p').style.fontSize, '18px');
   assert.equal(doc.querySelector('p').style.lineHeight, '2');
-  const invalid = api.normalizeSettings({ accent: 'red;position:fixed', fontSize: 99, theme: '__proto__' });
+  const invalid = api.normalizeSettings({ accent: 'red;position:fixed', fontSize: 99, theme: '__proto__', codeTheme: '__proto__' });
   assert.equal(invalid.fontSize, 20);
   assert.equal(invalid.accent, '#1c8feb');
   assert.equal(invalid.theme, 'clean');
+  assert.equal(invalid.codeTheme, 'one-dark');
+  assert.equal(api.normalizeSettings({}).codeTheme, 'one-dark');
+});
+
+test('九种文章样式各有标题与引用排版，复制和导出内联，切换文章样式保持代码主题', () => {
+  const markdown = '# 标题\n\n正文 **重点**。\n\n## 小节\n\n> 引用\n\n---\n\n```javascript\nconst count = 1;\n```';
+  const signatures = new Set();
+  let codeHtml;
+  assert.equal(Object.keys(api.themes).length, 9);
+  for (const theme of Object.keys(api.themes)) {
+    const result = render(markdown, { theme, codeTheme: 'light', accent: '#a3453e', paragraphSpacing: 24 });
+    const doc = parsed(result);
+    assert.equal(result.settings.theme, theme);
+    assert.equal(result.settings.codeTheme, 'light');
+    assert.equal(doc.querySelector('p').style.marginBottom, '24px');
+    assert.equal(doc.querySelector('pre code').style.backgroundColor, 'rgb(246, 248, 250)');
+    assert.equal(doc.querySelector('pre code').style.display, '-webkit-box');
+    assert.equal(doc.querySelector('pre code').style.whiteSpace, 'nowrap');
+    assert.equal(doc.querySelector('[class]:not(pre.custom),link,style,script'), null);
+    signatures.add(['h1', 'h2', 'blockquote', 'hr'].map(tag => doc.querySelector(tag).getAttribute('style')).join('|'));
+    const pre = doc.querySelector('pre').outerHTML;
+    if (codeHtml) assert.equal(pre, codeHtml, '文章样式不改变代码配色或滚动布局');
+    codeHtml = pre;
+    const exported = new dom.window.DOMParser().parseFromString(api.exportDocument(result), 'text/html');
+    for (const tag of ['h1', 'h2', 'blockquote', 'hr', 'pre']) assert.equal(exported.querySelector(tag).outerHTML, doc.querySelector(tag).outerHTML);
+  }
+  assert.equal(signatures.size, 9, '每种文章样式都有独立的版式');
 });
 
 test('导出的独立 HTML 包含 viewport，无外部 CSS/JS，支持跨宽度复用', () => {
@@ -132,7 +277,10 @@ test('导出的独立 HTML 包含 viewport，无外部 CSS/JS，支持跨宽度�
   assert.match(html, /name="viewport"/);
   assert.match(html, /width=device-width/);
   assert.ok(!/<script|<link/.test(html));
-  assert.match(html, /max-width:720px/);
+  const exported = new dom.window.DOMParser().parseFromString(html, 'text/html');
+  assert.equal(exported.querySelector('main').style.maxWidth, '677px');
+  assert.equal(exported.querySelector('main > section').style.maxWidth, '677px');
+  assert.equal(exported.body.style.paddingLeft, '16px');
 });
 
 test('纯文本剪贴板保留段落与代码换行，空输入也可渲染', () => {
@@ -165,7 +313,8 @@ test('函数参数与缩进在移除 white-space 样式后仍由内容保留，�
   const pre = parsed(result).querySelector('pre');
   assert.equal(pre.querySelectorAll('br').length, 7);
   assert.equal(pre.querySelectorAll('p,div,section').length, 0);
-  for (const span of pre.querySelectorAll('span')) assert.equal(span.style.display, 'inline');
+  assert.equal(pre.querySelector('code > span').style.display, 'block');
+  for (const span of pre.querySelectorAll('code > span span')) assert.equal(span.style.display, 'inline');
   pre.querySelectorAll('[style]').forEach(el => el.removeAttribute('style'));
   const expected = code.replace(/^\t/gm, '  ');
   assert.equal(codeText(pre), expected);

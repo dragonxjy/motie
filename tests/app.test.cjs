@@ -90,11 +90,74 @@ test('排版控件更新预览，设置持久化仅含排版参数', () => {
   app.change('#font-size', '18'); app.change('#theme-select', 'technical'); app.change('#code-wrap', false);
   assert.match(app.preview(), /font-size:18px/);
   assert.match(app.preview(), /border-left:3px/);
-  const settings = JSON.parse(app.window.localStorage.getItem('motie.settings.v2'));
+  const settings = JSON.parse(app.window.localStorage.getItem('motie.settings.v4'));
   assert.equal(settings.codeWrap, false);
   assert.equal(settings.fontSize, 18);
   assert.equal(settings.markdown, undefined);
   assert.equal(app.window.localStorage.getItem('motie.draft.v1'), null);
+});
+
+test('侧栏四种代码主题同步到复制，保存并恢复选择，切换不改变换行偏好', async () => {
+  const app = createApp();
+  const source = 'const url = "https://example.com/' + 'long/'.repeat(30) + '";\n  console.log(url);';
+  await app.fill('```javascript\n' + source + '\n```');
+  assert.equal(app.$('#code-theme').value, 'one-dark');
+  assert.equal(app.$('#code-theme').options.length, 4);
+  let copied;
+  app.window.document.execCommand = () => {
+    const event = new app.window.Event('copy', { bubbles: true, cancelable: true });
+    Object.defineProperty(event, 'clipboardData', { value: { setData: (type, text) => { if (type === 'text/html') copied = text; } } });
+    app.window.document.dispatchEvent(event); return true;
+  };
+  for (const [value, background] of [['light', 'rgb(246, 248, 250)'], ['purple', 'rgb(40, 42, 54)'], ['one-dark', 'rgb(40, 44, 52)'], ['night-blue', 'rgb(15, 23, 42)']]) {
+    app.change('#code-theme', value);
+    assert.equal(app.$('#code-wrap').checked, false);
+    assert.equal(app.$('#preview-content pre code').style.display, '-webkit-box');
+    assert.equal(app.$('#preview-content pre code').style.backgroundColor, background);
+    app.click('#copy-button'); await sleep(10);
+    const doc = new app.window.DOMParser().parseFromString(copied, 'text/html');
+    assert.equal(doc.querySelector('pre code').style.backgroundColor, background);
+    assert.equal(doc.querySelector('pre code').style.overflowX, 'auto');
+    assert.equal(doc.querySelector('[tabindex]'), null);
+    assert.equal(JSON.parse(app.window.localStorage.getItem('motie.settings.v4')).codeTheme, value);
+  }
+  const restored = createApp({ 'motie.settings.v4': app.window.localStorage.getItem('motie.settings.v4') });
+  assert.equal(restored.$('#code-theme').value, 'night-blue');
+  assert.equal(restored.$('#code-wrap').checked, false);
+  restored.change('#code-wrap', true); restored.change('#code-theme', 'light');
+  assert.equal(restored.$('#code-wrap').checked, true);
+  assert.equal(restored.$('#preview-content pre code').style.whiteSpace, 'pre-wrap');
+  restored.click('[data-action="reset-style"]');
+  assert.equal(restored.$('#code-theme').value, 'one-dark');
+  assert.equal(restored.$('#code-wrap').checked, false);
+  assert.equal(app.$('#markdown-input').value, '```javascript\n' + source + '\n```');
+  assert.deepEqual(app.errors, []);
+});
+
+test('九种文章样式可选择与恢复，保留当前代码主题、原文和横向滚动', async () => {
+  const app = createApp();
+  await app.fill('# 标题\n\n## 章节\n\n> 引用\n\n```js\nconst count = 1;\n```');
+  app.change('#code-theme', 'purple');
+  const markdown = app.$('#markdown-input').value;
+  const styles = [...app.$('#theme-select').options].map(option => option.value);
+  assert.equal(styles.length, 9);
+  const pre = app.$('#preview-content pre').outerHTML;
+  const hints = new Set();
+  for (const value of styles) {
+    app.change('#theme-select', value);
+    assert.equal(app.$('#theme-select').value, value);
+    assert.equal(app.$('#code-theme').value, 'purple');
+    assert.equal(app.$('#preview-content pre').outerHTML, pre);
+    assert.equal(app.$('#code-wrap').checked, false);
+    assert.equal(app.$('#markdown-input').value, markdown);
+    hints.add(app.$('#article-style-help').textContent);
+  }
+  assert.equal(hints.size, 9);
+  const restored = createApp({ 'motie.settings.v4': app.window.localStorage.getItem('motie.settings.v4') });
+  assert.equal(restored.$('#theme-select').value, 'minimal');
+  assert.equal(restored.$('#code-theme').value, 'purple');
+  assert.equal(restored.$('#code-wrap').checked, false);
+  assert.deepEqual(app.errors, []);
 });
 
 test('草稿明确开启后保存，关闭后移除；恢复草稿不冒充本地图片已恢复', async () => {
@@ -125,11 +188,18 @@ test('撤销、重做与清空确认可恢复用户内容', async () => {
 
 test('手机视图切换、电脑宽度和排版面板状态正确', () => {
   const app = createApp();
+  assert.equal(app.$('.workspace').dataset.previewDevice, 'desktop');
+  app.click('[data-device="mobile"]');
+  assert.equal(app.$('.workspace').dataset.previewDevice, 'mobile');
   app.click('[data-view="preview"]');
   assert.equal(app.$('.workspace').dataset.mobileView, 'preview');
   assert.equal(app.$('#preview-tab').getAttribute('aria-selected'), 'true');
   app.click('[data-device="desktop"]');
   assert.ok(app.$('.preview-scroll').classList.contains('desktop-preview'));
+  app.$('#preview-paper').getBoundingClientRect = () => ({ width: 709 });
+  app.$('#preview-content').getBoundingClientRect = () => ({ width: 677 });
+  app.window.dispatchEvent(new app.window.Event('resize'));
+  assert.equal(app.$('#preview-width').textContent, '677 px');
   app.click('[data-action="settings"]'); assert.ok(app.$('.workspace').classList.contains('settings-open'));
   app.window.document.dispatchEvent(new app.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
   assert.ok(!app.$('.workspace').classList.contains('settings-open'));
@@ -174,6 +244,19 @@ test('实际复制载荷保留参数换行、任务同段和可识别参考地�
   const doc = new app.window.DOMParser().parseFromString(data['text/html'], 'text/html');
   assert.match(doc.querySelector('li > p').textContent, /^☑\s+确认/);
   assert.equal(doc.querySelector('pre').querySelectorAll('br').length, 2);
+  const pre = doc.querySelector('pre'), scroller = pre.querySelector('code');
+  assert.equal(scroller.style.backgroundColor, 'rgb(40, 44, 52)');
+  assert.equal(scroller.style.fontSize, '13px');
+  assert.equal(scroller.style.lineHeight, '25.5px');
+  const toolbar = pre.previousElementSibling;
+  assert.equal(toolbar.getAttribute('aria-hidden'), 'true');
+  assert.deepEqual([...toolbar.children].map(dot => dot.style.backgroundColor), ['rgb(255, 95, 86)', 'rgb(255, 189, 46)', 'rgb(39, 201, 63)']);
+  assert.equal(pre.parentElement.style.borderRadius, '5px');
+  assert.equal(scroller.style.overflowX, 'auto');
+  assert.equal(scroller.style.display, '-webkit-box');
+  assert.equal(pre.style.getPropertyPriority('white-space'), 'important');
+  assert.ok([...pre.querySelectorAll('span')].some(node => node.style.color === 'rgb(198, 120, 221)'));
+  assert.equal(scroller.querySelector('p'), null);
   assert.ok(data['text/plain'].includes(code));
   assert.equal(doc.querySelector('a').getAttribute('href'), 'https://cn.vuejs.org/');
   assert.equal(doc.querySelector('a').parentNode.textContent, '[1] https://cn.vuejs.org/');
@@ -192,7 +275,7 @@ test('预览正文在外层画布内渲染，页面没有嵌套滚动视口', ()
   assert.equal(app.window.document.activeElement, app.$('#preview-scroll'));
   const css = fs.readFileSync(path.join(root, 'src/styles.css'), 'utf8');
   assert.match(css, /\.preview-scroll\{overflow-x:hidden;overflow-y:auto/);
-  assert.match(css, /\.preview-paper\{[^}]*max-width:100%/);
+  assert.match(css, /\.preview-paper\{[^}]*max-width:calc\(100% - 32px\)/);
   assert.equal(/#preview-(?:content|paper)[^{]*\{[^}]*overflow-y\s*:\s*(?:auto|scroll)/.test(css), false);
 });
 
@@ -253,6 +336,25 @@ test('旧默认绿迁移为蓝色，旧自选色和新版自选色保持，草�
   assert.equal(current.$('#markdown-input').value, '# 迁移前草稿');
 });
 
+test('旧设置迁移到代码横向滚动，保留其他选项；新设置中的换行偏好可恢复', () => {
+  for (const key of ['motie.settings.v1', 'motie.settings.v2', 'motie.settings.v3']) {
+    const oldSettings = JSON.stringify({ codeWrap: true, accent: '#76508e', fontSize: 18 });
+    const app = createApp({ [key]: oldSettings, 'motie.draft.v1': JSON.stringify({ markdown: '# 已保存草稿\n\n```js\nconst value = 1;\n```' }) });
+    assert.equal(app.$('#code-wrap').checked, false);
+    assert.equal(app.$('#preview-content pre code').style.overflowX, 'auto');
+    assert.equal(app.$('#accent-color').value, '#76508e');
+    assert.equal(app.$('#font-size').value, '18');
+    assert.match(app.$('#markdown-input').value, /已保存草稿/);
+    app.change('#code-wrap', true);
+    const restored = createApp({ [key]: oldSettings, 'motie.settings.v4': app.window.localStorage.getItem('motie.settings.v4') });
+    assert.equal(restored.$('#code-wrap').checked, true);
+    assert.equal(restored.$('#preview-content pre').style.whiteSpace, 'pre-wrap');
+    restored.click('[data-action="reset-style"]');
+    assert.equal(restored.$('#code-wrap').checked, false);
+    assert.equal(restored.$('#preview-content pre code').tabIndex, 0);
+  }
+});
+
 test('段落间距和图注开关同时作用于复制并在重新打开后恢复', async () => {
   const app = createApp();
   await app.fill('# 文章\n\n第一段\n\n第二段\n\n![架构说明](https://example.com/a.png)');
@@ -271,8 +373,8 @@ test('段落间距和图注开关同时作用于复制并在重新打开后恢�
   assert.equal(doc.querySelector('figcaption'), null);
   assert.equal(doc.querySelector('img').getAttribute('alt'), '架构说明');
   assert.equal(doc.querySelector('[data-outline-index], [tabindex]'), null);
-  const stored = app.window.localStorage.getItem('motie.settings.v2');
-  const restored = createApp({ 'motie.settings.v2': stored });
+  const stored = app.window.localStorage.getItem('motie.settings.v4');
+  const restored = createApp({ 'motie.settings.v4': stored });
   assert.equal(restored.$('#paragraph-spacing').value, '24');
   assert.equal(restored.$('#image-captions').checked, false);
   app.click('[data-action="reset-style"]');
@@ -312,7 +414,7 @@ test('大纲随新正文和空输入更新，不留下旧标题；关闭代码�
   assert.match(app.$('#outline-list').textContent, /没有标题/);
   await app.fill('```js\nconst longLine = "one two three";\n```');
   app.change('#code-wrap', false);
-  assert.equal(app.$('#preview-content pre').tabIndex, 0);
+    assert.equal(app.$('#preview-content pre code').tabIndex, 0);
   await app.fill('');
   assert.equal(app.$('#heading-count').textContent, '0');
   assert.equal(app.$('[data-outline-index]'), null);

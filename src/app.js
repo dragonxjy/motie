@@ -1,6 +1,6 @@
 (function () {
   'use strict';
-  const { render, exportDocument, normalizeSettings, defaults, safeUrl } = window.Motie;
+  const { render, exportDocument, normalizeSettings, defaults, themes, themeDescriptions, codeThemes, articleWidths, safeUrl } = window.Motie;
   const $ = selector => document.querySelector(selector);
   const input = $('#markdown-input');
   const previewContent = $('#preview-content');
@@ -8,17 +8,24 @@
   const sampleKey = 'motie-sample-cover.png';
   const escape = text => String(text).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const icon = name => `<i data-lucide="${name}"></i>`;
-  const settingsKey = 'motie.settings.v2', previousSettingsKey = 'motie.settings.v1', draftKey = 'motie.draft.v1';
-  let settings = { ...defaults }, result = null, timer, toastTimer, device = 'mobile', copying = false;
+  const settingsKey = 'motie.settings.v4', previousSettingsKey = 'motie.settings.v3', olderSettingsKey = 'motie.settings.v2', legacySettingsKey = 'motie.settings.v1', draftKey = 'motie.draft.v1';
+  let settings = { ...defaults }, result = null, timer, toastTimer, device = window.innerWidth > 760 ? 'desktop' : 'mobile', copying = false;
   let sourceName = '示例文章', localCounter = 0, replaceKey = null, pendingConfirm = null;
   let history = [], historyIndex = -1, lastHistoryTime = 0, savedSelection = { start: 0, end: 0 }, outlineTargets = [];
   const runtimeWarnings = new Set();
 
   function addSampleAsset() { assets.set(sampleKey, { dataUrl: window.MOTIE_SAMPLE_IMAGE, name: 'Markdown 到公众号发布流程示意图', kind: 'local' }); }
   addSampleAsset();
+  $('#theme-select').replaceChildren(...Object.entries(themes).map(([value, name]) => new Option(name, value)));
+  $('#code-theme').replaceChildren(...Object.entries(codeThemes).map(([value, theme]) => new Option(theme.name, value)));
   try {
-    const stored = JSON.parse(localStorage.getItem(settingsKey) || 'null') || JSON.parse(localStorage.getItem(previousSettingsKey) || 'null') || {};
-    if (!localStorage.getItem(settingsKey) && stored.accent?.toLowerCase() === '#18745b') stored.accent = defaults.accent;
+    const current = localStorage.getItem(settingsKey), previous = localStorage.getItem(previousSettingsKey);
+    const older = localStorage.getItem(olderSettingsKey);
+    const stored = JSON.parse(current || previous || older || localStorage.getItem(legacySettingsKey) || 'null') || {};
+    if (!current) {
+      if (!previous && !older && stored.accent?.toLowerCase() === '#18745b') stored.accent = defaults.accent;
+      stored.codeWrap = defaults.codeWrap;
+    }
     settings = normalizeSettings(stored);
   } catch { /* Settings are optional. */ }
   input.value = window.MOTIE_SAMPLE;
@@ -53,11 +60,12 @@
   function confirmReplace(title, callback) { $('#confirm-title').textContent = title; $('#confirm-message').textContent = '当前内容可以通过撤销恢复。'; pendingConfirm = callback; show('confirm-dialog'); }
   function installSettings() {
     $('#theme-select').value = settings.theme; $('#accent-color').value = settings.accent;
+    $('#article-style-help').textContent = themeDescriptions[settings.theme];
     $('#font-size').value = settings.fontSize;
     if (![...$('#line-height').options].some(option => Number(option.value) === settings.lineHeight)) settings.lineHeight = 1.85;
     $('#line-height').value = String(settings.lineHeight);
     $('#paragraph-spacing').value = String(settings.paragraphSpacing); $('#image-captions').checked = settings.imageCaptions;
-    $('#code-wrap').checked = settings.codeWrap; $('#link-footnotes').checked = settings.linkFootnotes; $('#hide-heading').checked = settings.hideFirstHeading;
+    $('#code-theme').value = settings.codeTheme; $('#code-wrap').checked = settings.codeWrap; $('#link-footnotes').checked = settings.linkFootnotes; $('#hide-heading').checked = settings.hideFirstHeading;
     document.querySelectorAll('[data-color]').forEach(button => { const selected = button.dataset.color.toLowerCase() === settings.accent.toLowerCase(); button.classList.toggle('selected', selected); button.setAttribute('aria-pressed', String(selected)); });
   }
   function updateStats() {
@@ -82,7 +90,12 @@
       result = render(input.value, settings, assets);
       previewContent.innerHTML = result.html;
       updateOutline();
-      if (!settings.codeWrap) previewContent.querySelectorAll('pre').forEach(pre => { pre.tabIndex = 0; pre.setAttribute('aria-label', '代码块，可用方向键横向查看'); });
+      if (!settings.codeWrap) previewContent.querySelectorAll('pre').forEach(pre => {
+        const scroller = pre.querySelector('code');
+        scroller.classList.add('code-scroll'); scroller.tabIndex = 0;
+        scroller.style.setProperty('--code-scrollbar-thumb', codeThemes[settings.codeTheme].scrollbar);
+        scroller.setAttribute('aria-label', '代码块，可用方向键横向查看');
+      });
       previewContent.querySelectorAll('a').forEach(anchor => anchor.addEventListener('click', event => event.preventDefault()));
       previewContent.querySelectorAll('img').forEach(img => {
         if (img.complete) checkPreviewImages();
@@ -123,20 +136,25 @@
   }
   function queueRun() { clearTimeout(timer); timer = setTimeout(run, 200); }
   function setDevice(mode) {
-    device = mode; $('.preview-scroll').style.setProperty('--preview-width', mode === 'mobile' ? '375px' : '680px');
+    device = mode; $('.workspace').dataset.previewDevice = mode;
+    $('.preview-scroll').style.setProperty('--preview-width', `${articleWidths[mode]}px`);
     $('.preview-scroll').classList.toggle('desktop-preview', mode === 'desktop');
-    $('#preview-width').textContent = mode === 'mobile' ? '375 px' : '680 px'; $('#preview-size').textContent = mode === 'mobile' ? '手机正文' : '电脑正文';
+    $('#preview-width').textContent = `${articleWidths[mode]} px`; $('#preview-size').textContent = mode === 'mobile' ? '手机正文' : '公众号电脑正文';
     document.querySelectorAll('[data-device]').forEach(button => { const active = button.dataset.device === mode; button.classList.toggle('active', active); button.setAttribute('aria-pressed', String(active)); });
+    $('#preview-scroll').scrollLeft = 0;
     updatePreviewWidth();
   }
   function updatePreviewWidth() {
-    const width = $('#preview-paper').getBoundingClientRect().width;
+    const viewport = $('#preview-scroll');
+    viewport.classList.toggle('has-horizontal-overflow', device === 'desktop' && viewport.scrollWidth > viewport.clientWidth + 1);
+    const width = previewContent.getBoundingClientRect().width;
     if (width) $('#preview-width').textContent = `${Math.round(width)} px`;
   }
   function setView(view) {
     $('.workspace').dataset.mobileView = view;
     document.querySelectorAll('[data-view]').forEach(button => button.setAttribute('aria-selected', String(button.dataset.view === view)));
     $('.workspace').classList.remove('settings-open'); $('[data-action="settings"]').setAttribute('aria-expanded', 'false');
+    updatePreviewWidth();
   }
   function download(content, type, filename) {
     const blob = new Blob([content], { type }); const url = URL.createObjectURL(blob);
@@ -145,7 +163,7 @@
   function filename(ext) { return `${(result?.title || '墨贴文章').replace(/[\\/:*?"<>|]/g, '').slice(0, 60) || '墨贴文章'}.${ext}`; }
   function selectionCopy(html, text) {
     const stage = document.createElement('div'); stage.contentEditable = 'true'; stage.innerHTML = html;
-    stage.style.cssText = 'position:fixed;left:-10000px;top:0;width:680px;background:#fff;'; document.body.append(stage);
+    stage.style.cssText = `position:fixed;left:-10000px;top:0;width:${articleWidths.desktop}px;background:#fff;`; document.body.append(stage);
     const selection = window.getSelection(); const savedRanges = [];
     for (let i = 0; i < (selection?.rangeCount || 0); i++) savedRanges.push(selection.getRangeAt(i).cloneRange());
     const range = document.createRange(); range.selectNodeContents(stage); selection?.removeAllRanges(); selection?.addRange(range);
@@ -266,7 +284,7 @@
     else { saveDraft(); notify('仅将 Markdown 保存在本机；本地图片刷新后需重新选择。'); }
   });
   document.addEventListener('change', event => {
-    const fields = { 'theme-select': 'theme', 'accent-color': 'accent', 'font-size': 'fontSize', 'line-height': 'lineHeight', 'paragraph-spacing': 'paragraphSpacing', 'image-captions': 'imageCaptions', 'code-wrap': 'codeWrap', 'link-footnotes': 'linkFootnotes', 'hide-heading': 'hideFirstHeading' };
+    const fields = { 'theme-select': 'theme', 'accent-color': 'accent', 'font-size': 'fontSize', 'line-height': 'lineHeight', 'paragraph-spacing': 'paragraphSpacing', 'image-captions': 'imageCaptions', 'code-theme': 'codeTheme', 'code-wrap': 'codeWrap', 'link-footnotes': 'linkFootnotes', 'hide-heading': 'hideFirstHeading' };
     const key = fields[event.target.id]; if (!key) return;
     settings[key] = event.target.type === 'checkbox' ? event.target.checked : ['fontSize', 'lineHeight', 'paragraphSpacing'].includes(key) ? Number(event.target.value) : event.target.value;
     settings = normalizeSettings(settings); installSettings(); saveSettings(); run();
@@ -309,6 +327,11 @@
   document.addEventListener('keydown', event => {
     if (event.key === 'Escape') { $('#source-menu').hidden = true; $('.workspace').classList.remove('settings-open'); $('[data-action="settings"]').setAttribute('aria-expanded', 'false'); }
   });
-  window.addEventListener('resize', updatePreviewWidth);
+  window.addEventListener('resize', () => requestAnimationFrame(updatePreviewWidth));
+  if (window.ResizeObserver) {
+    const previewResizeObserver = new ResizeObserver(() => requestAnimationFrame(updatePreviewWidth));
+    previewResizeObserver.observe(previewContent);
+    previewResizeObserver.observe($('#preview-scroll'));
+  }
   installSettings(); updateHistory(true); icons(); setDevice(device); run();
 })();
