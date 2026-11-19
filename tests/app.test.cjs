@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { JSDOM, VirtualConsole } = require('jsdom');
 const root = path.resolve(__dirname, '..');
-const scripts = ['vendor/marked.umd.js', 'vendor/purify.min.js', 'vendor/highlight.min.js', 'vendor/lucide.min.js', 'src/renderer.js', 'src/sample.js', 'assets/sample-image.js', 'src/app.js'];
+const scripts = ['vendor/marked.umd.js', 'vendor/purify.min.js', 'vendor/highlight.min.js', 'vendor/lucide.min.js', 'src/renderer.js', 'src/local-files.js', 'src/sample.js', 'assets/sample-image.js', 'src/app.js'];
 const windows = [];
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -30,6 +30,27 @@ function createApp(storage = {}) {
   return { window, $, click, change, fill, preview, errors };
 }
 after(() => windows.forEach(window => window.close()));
+
+function localImage(app, path, content = null) {
+  const bytes = content || new Uint8Array(Buffer.from(app.window.MOTIE_SAMPLE_IMAGE.split(',')[1], 'base64'));
+  const file = new app.window.File([bytes], path.split('/').at(-1), { type: 'image/png' });
+  Object.defineProperty(file, 'webkitRelativePath', { value: path });
+  return file;
+}
+function chooseFiles(app, selector, files) {
+  Object.defineProperty(app.$(selector), 'files', { configurable: true, value: files });
+  app.$(selector).dispatchEvent(new app.window.Event('change', { bubbles: true }));
+}
+function pasteFiles(app, files, text = '') {
+  const event = new app.window.Event('paste', { bubbles: true, cancelable: true });
+  Object.defineProperty(event, 'clipboardData', { value: { files, items: [], getData: () => text } });
+  app.$('#markdown-input').dispatchEvent(event);
+  return event;
+}
+async function waitUntil(check) {
+  const end = Date.now() + 2000;
+  while (!check()) { if (Date.now() > end) assert.fail('等待界面更新超时'); await sleep(10); }
+}
 
 test('初次载入示例，工具图标、统计与预览可用，草稿默认不保存', () => {
   const app = createApp();
@@ -209,7 +230,7 @@ test('图片面板能将相对路径替换为远程图片，检查面板同步',
   const app = createApp();
   await app.fill('![本地图](./missing.png)'); app.click('[data-action="images"]');
   assert.equal(app.$('#images-dialog').open, true);
-  assert.match(app.$('#image-list').textContent, /路径不可用/);
+  assert.match(app.$('#image-list').textContent, /导入配套图片文件夹/);
   app.$('[data-image-url="0"]').value = 'https://example.com/real.png';
   app.click('[data-apply-url="0"]');
   assert.match(app.preview(), /https:\/\/example.com\/real.png/);
@@ -316,6 +337,147 @@ test('剪贴板只有 files 时也可粘贴图片，并替换光标选中的 Mar
   assert.match(input.value, /!\[diagram\]\(motie-local-/);
   assert.match(input.value, /\n\n结尾$/);
   assert.equal(app.$('#image-count').textContent, '1');
+});
+
+test('粘贴 Markdown 后导入图片文件夹，按中文路径匹配引用且不插入无关图片', async () => {
+  const app = createApp();
+  const markdown = '# 图文文章\n\n![架构](<./images/架构 图.png>)\n\n![缺图](images/missing.png)';
+  await app.fill(markdown);
+  chooseFiles(app, '#folder-file', [localImage(app, '文章/images/架构 图.png'), localImage(app, '文章/unused.png')]);
+  await waitUntil(() => app.$('#preview-content img'));
+  assert.equal(app.$('#markdown-input').value, markdown);
+  assert.equal(app.$('#preview-content img').getAttribute('src'), app.window.MOTIE_SAMPLE_IMAGE);
+  assert.equal(app.$('#preview-content').querySelectorAll('img').length, 1);
+  assert.match(app.$('#local-image-status').textContent, /1 张已匹配.*1 张图片待补齐/);
+  assert.match(app.$('#preview-content').textContent, /图片待替换：缺图/);
+});
+
+test('先导入图片再粘贴正文，参考式和 HTML 图片也可自动匹配，切换样式后保留', async () => {
+  const app = createApp();
+  await app.fill('');
+  chooseFiles(app, '#folder-file', [localImage(app, 'images/one.png'), localImage(app, 'images/two.png')]);
+  await app.fill('# 后粘贴\n\n![参考][image]\n\n[image]: ./images/one.png\n\n<img src="./images/two.png" alt="HTML 图">');
+  await waitUntil(() => app.$('#preview-content').querySelectorAll('img').length === 2);
+  app.change('#theme-select', 'technical');
+  assert.equal(app.$('#preview-content').querySelectorAll('img[src^="data:image/png"]').length, 2);
+  assert.match(app.$('#local-image-status').textContent, /2 张引用图片已匹配/);
+});
+
+test('同次粘贴 Markdown 文本和引用图片，仅插入正文，不重复添加图片 Markdown', async () => {
+  const app = createApp();
+  await app.fill('开头\n\n旧内容\n\n结尾');
+  const input = app.$('#markdown-input');
+  input.setSelectionRange(4, 7);
+  const text = '![配图](./images/cover.png)';
+  const event = pasteFiles(app, [localImage(app, 'cover.png')], text);
+  assert.equal(event.defaultPrevented, true);
+  await waitUntil(() => app.$('#preview-content img'));
+  assert.equal(input.value, `开头\n\n${text}\n\n结尾`);
+  assert.doesNotMatch(input.value, /motie-local-/);
+  assert.equal(app.$('#image-count').textContent, '1');
+  app.click('#undo-button');
+  assert.equal(input.value, '开头\n\n旧内容\n\n结尾');
+});
+
+test('粘贴已有引用的图片文件时原位补图，不移动光标或重复插入', async () => {
+  const app = createApp();
+  const markdown = '# 文章\n\n![配图](images/cover.png)';
+  await app.fill(markdown);
+  const input = app.$('#markdown-input'); input.setSelectionRange(0, 0);
+  pasteFiles(app, [localImage(app, 'cover.png')]);
+  await waitUntil(() => app.$('#preview-content img'));
+  assert.equal(input.value, markdown);
+  assert.equal(input.selectionStart, 0);
+  assert.equal(app.$('#image-count').textContent, '1');
+});
+
+test('同批导入 Markdown 与图片，解析 Markdown 所在目录并将图片带入富文本复制', async () => {
+  const app = createApp();
+  const text = '# 批量导入\n\n![目录图](../images/cover.png)';
+  const md = new app.window.File([text], 'article.md', { type: 'text/markdown' });
+  Object.defineProperty(md, 'webkitRelativePath', { value: '文章/posts/article.md' });
+  chooseFiles(app, '#markdown-file', [md, localImage(app, '文章/images/cover.png')]);
+  await waitUntil(() => app.$('#markdown-input').value === text && app.$('#preview-content img'));
+  assert.equal(app.$('#markdown-input').value, text);
+  assert.equal(app.$('#source-name').textContent, 'article.md');
+  let copied;
+  app.window.document.execCommand = () => {
+    const event = new app.window.Event('copy', { cancelable: true });
+    Object.defineProperty(event, 'clipboardData', { value: { setData: (type, value) => { if (type === 'text/html') copied = value; } } });
+    app.window.document.dispatchEvent(event); return true;
+  };
+  app.click('#copy-button');
+  assert.match(copied, /data:image\/png;base64/);
+  assert.doesNotMatch(copied, /图片待替换/);
+});
+
+test('多个 Markdown 文件先供选择，选定后仍确认正文替换，取消不丢失原正文', async () => {
+  const app = createApp();
+  await app.fill('# 原正文');
+  const first = new app.window.File(['# 第一篇'], 'first.md', { type: 'text/markdown' });
+  const second = new app.window.File(['# 第二篇'], 'second.md', { type: 'text/markdown' });
+  chooseFiles(app, '#markdown-file', [first, second]);
+  assert.equal(app.$('#import-dialog').open, true);
+  assert.equal(app.$('#markdown-choices').children.length, 2);
+  assert.equal(app.$('#markdown-input').value, '# 原正文');
+  app.click('[data-import-markdown="1"]');
+  await waitUntil(() => app.$('#confirm-dialog').open);
+  app.click('[data-close="confirm-dialog"]');
+  assert.equal(app.$('#markdown-input').value, '# 原正文');
+  chooseFiles(app, '#markdown-file', [second]);
+  await waitUntil(() => app.$('#confirm-dialog').open);
+  app.click('#confirm-button');
+  assert.equal(app.$('#markdown-input').value, '# 第二篇');
+});
+
+test('同名图片保留占位并提示，手动选择对应原图后可显示', async () => {
+  const app = createApp();
+  const markdown = '# 不猜测\n\n![封面](cover.png)';
+  await app.fill(markdown);
+  chooseFiles(app, '#folder-file', [localImage(app, 'images/cover.png'), localImage(app, 'assets/cover.png')]);
+  assert.equal(app.$('#preview-content img'), null);
+  assert.match(app.$('#local-image-status').textContent, /图片重名/);
+  app.click('[data-action="images"]');
+  assert.match(app.$('#image-list small').textContent, /同名图片/);
+  app.click('[data-replace-image="0"]');
+  chooseFiles(app, '#replace-file', [localImage(app, 'images/cover.png')]);
+  await waitUntil(() => app.$('#preview-content img'));
+  assert.equal(app.$('#markdown-input').value, markdown);
+});
+
+test('切换文章与撤销恢复 Markdown 的相对路径上下文，不沿用另一篇的同名图片', async () => {
+  const app = createApp();
+  const md = path => {
+    const file = new app.window.File(['![封面](images/cover.png)'], 'article.md', { type: 'text/markdown' });
+    Object.defineProperty(file, 'webkitRelativePath', { value: path }); return file;
+  };
+  chooseFiles(app, '#folder-file', [md('first/article.md'), localImage(app, 'first/images/cover.png')]);
+  await waitUntil(() => app.$('#preview-content img'));
+  const first = app.$('#preview-content img').src;
+  chooseFiles(app, '#folder-file', [md('second/article.md'), localImage(app, 'second/images/cover.png', 'another-image')]);
+  await waitUntil(() => app.$('#confirm-dialog').open);
+  app.click('#confirm-button');
+  await waitUntil(() => app.$('#preview-content img')?.src !== first && app.$('#preview-content img'));
+  app.click('#undo-button');
+  await waitUntil(() => app.$('#preview-content img')?.src === first);
+  app.click('#redo-button');
+  await waitUntil(() => app.$('#preview-content img') && app.$('#preview-content img').src !== first);
+});
+
+test('超过 20 张引用图片的文件夹完整匹配；超限文件明确提示且可重新选择恢复', async () => {
+  const app = createApp();
+  const markdown = Array.from({ length: 21 }, (_, i) => `![图${i}](images/${i}.png)`).join('\n\n');
+  await app.fill(markdown);
+  chooseFiles(app, '#folder-file', Array.from({ length: 21 }, (_, i) => localImage(app, `images/${i}.png`)));
+  await waitUntil(() => app.$('#preview-content').querySelectorAll('img').length === 21);
+  assert.equal(app.$('#markdown-input').value, markdown);
+  await app.fill('![大图](large.png)');
+  chooseFiles(app, '#folder-file', [localImage(app, 'large.png', new Uint8Array(5 * 1024 * 1024 + 1))]);
+  app.click('[data-action="images"]');
+  await waitUntil(() => /超过 5 MB/.test(app.$('#image-list small').textContent));
+  chooseFiles(app, '#folder-file', [localImage(app, 'large.png')]);
+  await waitUntil(() => app.$('#preview-content img'));
+  assert.equal(app.$('#copy-button').disabled, false);
 });
 
 

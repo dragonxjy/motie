@@ -1,15 +1,15 @@
 {
-  "date": "2026-11-04",
+  "date": "2026-11-19",
   "version": "1.1.0",
   "runtime": {
     "node": "24.21.0",
     "jsdom": "30.1.3",
-    "chrome": "156.0.8078.81"
+    "chrome": "157.0.8103.79"
   },
   "syntaxCheck": "passed",
   "tests": {
-    "total": 51,
-    "passed": 51,
+    "total": 68,
+    "passed": 68,
     "failed": 0,
     "skipped": 0,
     "todo": 0,
@@ -40,7 +40,15 @@
     "codeThemeSwitching": "four_themes_copy_export_and_native_mobile_touch_passed_real_browser_checks",
     "articleStyleSwitching": "nine_styles_and_36_article_code_theme_combinations_passed_logic_and_browser_checks",
     "isolatedClipboardHtmlThemeAndTouch": "passed_real_browser_checks_without_motie_css_js",
-    "exportWidthConsistency": "passed_real_browser_checks"
+    "exportWidthConsistency": "passed_real_browser_checks",
+    "markdownAndImageFolderImport": "passed_real_browser_directory_input",
+    "pastedMarkdownAndImages": "passed_browser_clipboard_event_and_logic_tests",
+    "relativeAndEncodedImagePaths": "passed_logic_and_real_browser_checks",
+    "duplicateImageNames": "passed_logic_tests_and_real_directory_import",
+    "imageDirectoryPagination": "passed_mock_entry_tests_over_100_files",
+    "nativeFolderClipboard": "not_verified_use_drop_or_directory_picker",
+    "undoRestoresMarkdownDirectory": "passed_logic_tests",
+    "folderImageCopyAndExport": "passed_mock_clipboard_and_real_html_download"
   },
   "exampleExport": {
     "completed": true,
@@ -61,9 +69,11 @@
   "githubPages": "not_deployed",
   "testGroups": {
     "renderer": 30,
-    "interface": 21
+    "interface": 30,
+    "localFiles": 8
   },
   "usageGuide": "使用说明.md",
   "browserReport": "browser-checks.json",
-  "nativeClipboardReport": "clipboard-check.json"
+  "nativeClipboardReport": "clipboard-check.json",
+  "browserChecks": 19
 }

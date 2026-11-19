@@ -22,7 +22,9 @@ async function serve() {
 }
 
 (async () => {
-  browser = await chromium.launch({ headless: true, ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {}) });
+  const systemChrome = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+  const executablePath = process.env.CHROME_PATH || (process.platform === 'darwin' && await fs.access(systemChrome).then(() => systemChrome, () => null));
+  browser = await chromium.launch({ headless: true, ...(executablePath ? { executablePath } : {}) });
   const base = await serve();
   temporary = await fs.mkdtemp(path.join(os.tmpdir(), 'motie-check-'));
   await fs.mkdir(screenshotDir, { recursive: true });
@@ -158,7 +160,7 @@ async function serve() {
   await page.waitForFunction(html => window.__clipboard?.html === html, copied.html);
   checks.push('手机 / 电脑模式复制相同的富文本，默认代码主题和横向滚动均内联，纯文本保留代码原文（接口替身）');
 
-  await page.locator('[data-action="images"]').click();
+  await page.locator('.sidebar-action[data-action="images"]').click();
   await page.locator('#images-dialog').waitFor();
   assert.equal(await page.locator('#image-list .image-item').count(), 1);
   await page.screenshot({ path: path.join(screenshotDir, '03-image-manager.png'), fullPage: true });
@@ -170,6 +172,57 @@ async function serve() {
   await page.locator('#image-file').setInputFiles({ name: 'workflow.png', mimeType: 'image/png', buffer: await fs.readFile(path.join(root, 'assets/article-workflow.png')) });
   await article.locator('img').waitFor();
   checks.push('导入 Markdown 需要确认替换，本地图片可插入并显示');
+
+  const importFolder = path.join(temporary, '图文导入');
+  const importedMarkdown = '# 文件夹图文测试\n\n![中文路径](<../图片/架构 图.png>)\n\n![同名原图](<../other/架构 图.png>)';
+  await fs.mkdir(path.join(importFolder, '正文'), { recursive: true });
+  await fs.mkdir(path.join(importFolder, '图片'), { recursive: true });
+  await fs.mkdir(path.join(importFolder, 'other'), { recursive: true });
+  await fs.writeFile(path.join(importFolder, '正文/文章.md'), importedMarkdown);
+  const png = await fs.readFile(path.join(root, 'assets/article-workflow.png'));
+  await fs.writeFile(path.join(importFolder, '图片/架构 图.png'), png);
+  await fs.writeFile(path.join(importFolder, 'other/架构 图.png'), png);
+  await fs.writeFile(path.join(importFolder, 'unreferenced.png'), png);
+  await page.locator('#folder-file').setInputFiles(importFolder);
+  await page.locator('#confirm-button').click();
+  await page.waitForFunction(() => document.querySelectorAll('#preview-content img').length === 2 && [...document.querySelectorAll('#preview-content img')].every(img => img.complete && img.naturalWidth > 0));
+  assert.equal(await page.locator('#markdown-input').inputValue(), importedMarkdown);
+  assert.match(await page.locator('#local-image-status').innerText(), /2 张引用图片已匹配/);
+  await page.evaluate(() => { window.__clipboard = null; });
+  await page.locator('#copy-button').click();
+  await page.waitForFunction(() => window.__clipboard?.html);
+  assert.equal(await page.evaluate(() => {
+    const holder = document.createElement('div'); holder.innerHTML = window.__clipboard.html;
+    return holder.querySelectorAll('img[src^="data:image/png"]').length;
+  }), 2);
+  const [imageDownload] = await Promise.all([page.waitForEvent('download'), page.locator('#html-button').click()]);
+  const imageOutput = path.join(temporary, 'imported.html'); await imageDownload.saveAs(imageOutput);
+  const imageExport = await fs.readFile(imageOutput, 'utf8');
+  assert.equal((imageExport.match(/<img /g) || []).length, 2);
+  assert.match(imageExport, /data:image\/png;base64/);
+  await page.screenshot({ path: path.join(screenshotDir, '10-folder-import.png'), fullPage: true });
+  checks.push('真实目录选择保留中文和空格路径，按 Markdown 目录匹配两张同名图片；原文不变，无关图片不插入，复制和 HTML 导出携带图片');
+
+  const pastedMarkdown = '# 先粘贴 Markdown\n\n![图](<./图片/架构 图.png>)';
+  await page.locator('#markdown-input').fill(pastedMarkdown);
+  await article.locator('h1').filter({ hasText: '先粘贴 Markdown' }).waitFor();
+  await page.locator('#folder-file').setInputFiles(path.join(importFolder, '图片'));
+  await page.waitForFunction(() => document.querySelectorAll('#preview-content img').length === 1 && document.querySelector('#preview-content img').naturalWidth > 0);
+  assert.equal(await page.locator('#markdown-input').inputValue(), pastedMarkdown);
+  await page.locator('#markdown-input').fill('# 剪贴板图文\n\n');
+  await article.locator('h1').filter({ hasText: '剪贴板图文' }).waitFor();
+  await page.evaluate(() => {
+    const input = document.getElementById('markdown-input'); input.setSelectionRange(input.value.length, input.value.length);
+    const bytes = Uint8Array.from(atob(window.MOTIE_SAMPLE_IMAGE.split(',')[1]), ch => ch.charCodeAt(0));
+    const transfer = new DataTransfer();
+    transfer.items.add(new File([bytes], 'clipboard.png', { type: 'image/png' }));
+    transfer.setData('text/plain', '![剪贴板图片](./images/clipboard.png)');
+    input.dispatchEvent(new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: transfer }));
+  });
+  await page.waitForFunction(() => document.querySelector('#preview-content img')?.naturalWidth > 0);
+  assert.equal(await page.locator('#image-count').innerText(), '1');
+  assert.doesNotMatch(await page.locator('#markdown-input').inputValue(), /motie-local-/);
+  checks.push('先粘贴正文再选择图片文件夹可补图；浏览器剪贴板事件同时接收 Markdown 和图片，按引用展示且不重复插入');
 
   const hostile = '# 安全测试\n\n<img src="javascript:alert(1)" onerror="window.XSS=1"><script>window.XSS=1</script>\n\n正常正文';
   await page.locator('#markdown-input').fill(hostile);
@@ -415,7 +468,7 @@ async function serve() {
   await overviewContext.close();
   await mobile.close();
 
-  // Use the React snippet from the supplied article to review the screenshot's theme.
+  // Use the standalone React fixture to review the copied code theme.
   const themeExample = await fs.readFile(path.join(root, 'docs/代码主题样例.md'), 'utf8');
   await page.locator('#markdown-input').fill(themeExample);
   await page.evaluate(() => { window.__clipboard = null; });
@@ -433,7 +486,7 @@ async function serve() {
   await proofContext.close();
 
   assert.deepEqual(errors, []); assert.deepEqual(externalRequests, []);
-  const evidence = { timestamp: new Date().toISOString(), browser: browser.version(), checks, errors, externalRequests, screenshotFiles: ['01-workspace.png', '02-code-and-table.png', '03-image-manager.png', '04-mobile.png', '05-mobile-code-scroll.png', '06-copied-code-theme.png', '07-dark-code-theme.png', '08-code-theme-switch.png', '09-article-styles.png'], wechatVerified: false, actualClipboardVerified: false };
+  const evidence = { timestamp: new Date().toISOString(), browser: browser.version(), checks, errors, externalRequests, screenshotFiles: ['01-workspace.png', '02-code-and-table.png', '03-image-manager.png', '04-mobile.png', '05-mobile-code-scroll.png', '06-copied-code-theme.png', '07-dark-code-theme.png', '08-code-theme-switch.png', '09-article-styles.png', '10-folder-import.png'], wechatVerified: false, actualClipboardVerified: false };
   await fs.writeFile(path.join(root, 'docs/browser-checks.json'), JSON.stringify(evidence, null, 2) + '\n');
   console.log(JSON.stringify(evidence, null, 2));
 })().catch(error => { console.error(error.stack); process.exitCode = 1; }).finally(async () => {

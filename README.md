@@ -24,7 +24,7 @@ npm start
 | 排版侧栏 | 九种文章样式、四种代码主题、自定义主题色、字号、行距、段落间距、代码换行、首标题与图注开关 |
 | 文章大纲 | 根据转换结果生成，点击滚动到预览中的标题 |
 | 预览 | 电脑正文固定 677 px；手机模拟 375 px 屏幕、343 px 正文；窄电脑面板可横向查看，文章由外层统一纵向滚动 |
-| 图片 | 光标处粘贴、文件选择、拖入；单张路径替换；PNG / JPG / WebP / GIF |
+| 图片 | 粘贴图文、一起导入 Markdown 与图片、拖入或选择整个文件夹；按相对路径或唯一文件名自动补图，同名冲突提示；PNG / JPG / WebP / GIF |
 | 外链 | 默认转文末注释并去重；保留已有参考编号，修复重复 URL 标签 |
 | 复制与导出 | 同一份内联样式 HTML 用于复制、预览、导出；复制同时提供纯文本 |
 | 草稿与撤销 | 可选本机 Markdown 草稿，默认关闭；最多 60 步内容历史 |
@@ -54,7 +54,7 @@ npm test
 npm run example
 ```
 
-`npm run example` 更新 `docs/示例文章.md` 与 `docs/示例排版.html`。当前 **51 项测试通过**，包括 30 项转换测试和 21 项界面逻辑测试。九种文章样式、四种代码主题的组合、主题切换与保存、设置迁移、大纲定位、图注移除、段落间距与复制一致性均有回归覆盖。原始记录见 [验证记录](docs/验证记录.md)。
+`npm run example` 更新 `docs/示例文章.md` 与 `docs/示例排版.html`。当前 **68 项测试通过**，包括 30 项转换测试、30 项界面逻辑测试和 8 项文件匹配与目录读取测试。覆盖图文批量导入、中文与编码路径、子目录、同名冲突、撤销时的相对路径恢复、目录分批读取，以及原有样式与复制能力。原始记录见 [验证记录](docs/验证记录.md)。
 
 真实浏览器验收与截图：
 
@@ -72,6 +72,7 @@ npm run test:browser
 ```text
 index.html                 网页入口
 src/renderer.js            解析、清理、内联样式、图片与外链转换
+src/local-files.js         文件夹读取、图片索引与相对路径匹配
 src/app.js                 编辑、预览、大纲、剪贴板、图片管理、草稿
 src/styles.css             简洁蓝色界面、响应式布局、滚动样式
 src/sample.js              初始示例
@@ -88,6 +89,6 @@ serve.cjs                  无额外依赖的本地服务器
 
 转换流程为 Marked 解析 → DOMPurify 清理 → 图片 / 链接 / 代码处理 → 内联样式。同一份结果用于预览、复制和导出。大纲导航及键盘焦点属性只加到预览 DOM，不写入复制结果。
 
-正文在浏览器本地处理，不上传到项目服务器；远程图片仍会请求图片源站。没有运行时 CDN、分析统计或远程字体。导入上限 2 MB，正文上限 30 万字符；单图上限 5 MB，一次最多 20 张。超过 8 MB 富文本时提示压缩，此阈值是工具提醒，不是公众号官方限制。
+正文在浏览器本地处理，不上传到项目服务器；远程图片仍会请求图片源站。没有运行时 CDN、分析统计或远程字体。导入上限 2 MB，正文上限 30 万字符；单图上限 5 MB，一次直接插入最多 20 张，文件夹仅加载正文引用的图片。超过 8 MB 富文本时提示压缩，此阈值是工具提醒，不是公众号官方限制。
 
 第三方库来源与许可见 [THIRD_PARTY.md](THIRD_PARTY.md)。相关技术依据：[Clipboard.write()](https://developer.mozilla.org/en-US/docs/Web/API/Clipboard/write)、[Marked](https://marked.js.org/using_pro)、[DOMPurify](https://github.com/cure53/DOMPurify)、[微信图文图片上传接口](https://developers.weixin.qq.com/doc/service/api/material/permanent/api_uploadimage.html)。
